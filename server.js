@@ -144,6 +144,39 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Handle chat invitation sent
+  socket.on("invitation_sent", (data) => {
+    const { recipientId, senderId, invitationId } = data;
+
+    // Notify the recipient about the new invitation
+    io.to(`user_${recipientId}`).emit("invitation_received", {
+      invitationId,
+      senderId,
+    });
+  });
+
+  // Handle invitation response (accepted/rejected)
+  socket.on("invitation_responded", (data) => {
+    const { invitationId, senderId, recipientId, status } = data;
+
+    // Notify the sender about the response
+    io.to(`user_${senderId}`).emit("invitation_response", {
+      invitationId,
+      recipientId,
+      status,
+    });
+
+    // If accepted, notify both users that they can now chat
+    if (status === "accepted") {
+      io.to(`user_${senderId}`).emit("conversation_ready", {
+        message: "Chat invitation accepted! You can now start messaging.",
+      });
+      io.to(`user_${recipientId}`).emit("conversation_ready", {
+        message: "Chat invitation accepted! You can now start messaging.",
+      });
+    }
+  });
+
   // Handle disconnection
   socket.on("disconnect", () => {
     const userId = socketToUser.get(socket.id);

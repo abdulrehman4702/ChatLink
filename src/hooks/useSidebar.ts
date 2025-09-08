@@ -155,7 +155,7 @@ export const useSidebar = (selectedConversation: string | null) => {
     }
   };
 
-  const startNewConversation = async (
+  const selectExistingConversation = async (
     otherUser: User,
     onSelectConversation: (conversationId: string, otherUser: User) => void
   ) => {
@@ -173,28 +173,13 @@ export const useSidebar = (selectedConversation: string | null) => {
     if (existingConv) {
       onSelectConversation(existingConv.id, otherUser);
       navigate(`/chat/${existingConv.id}`);
+      setShowUserSearch(false);
     } else {
-      // Create new conversation
-      const { data: newConv, error } = await supabase
-        .from("conversations")
-        .insert({
-          participant1_id: user.id,
-          participant2_id: otherUser.id,
-        })
-        .select()
-        .single();
-
-      if (!error && newConv) {
-        onSelectConversation(newConv.id, otherUser);
-        navigate(`/chat/${newConv.id}`);
-        setTimeout(() => {
-          loadConversations();
-        }, 100);
-      } else {
-        console.error("Error creating conversation:", error);
-      }
+      // No existing conversation - this should not happen with invitation system
+      console.warn(
+        "No existing conversation found. User should send invitation first."
+      );
     }
-    setShowUserSearch(false);
   };
 
   const handleRefresh = async () => {
@@ -250,7 +235,7 @@ export const useSidebar = (selectedConversation: string | null) => {
     onlineUsers,
     loadConversations,
     loadAllUsers,
-    startNewConversation,
+    selectExistingConversation,
     handleRefresh,
     handleLogout,
     markAsRead,

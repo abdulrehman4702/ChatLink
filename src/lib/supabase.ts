@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -14,7 +14,7 @@ export type Database = {
           email: string;
           full_name: string;
           avatar_url: string | null;
-          status: 'online' | 'offline';
+          status: "online" | "offline";
           last_seen: string;
           created_at: string;
         };
@@ -23,7 +23,7 @@ export type Database = {
           email: string;
           full_name: string;
           avatar_url?: string | null;
-          status?: 'online' | 'offline';
+          status?: "online" | "offline";
           last_seen?: string;
           created_at?: string;
         };
@@ -32,7 +32,7 @@ export type Database = {
           email?: string;
           full_name?: string;
           avatar_url?: string | null;
-          status?: 'online' | 'offline';
+          status?: "online" | "offline";
           last_seen?: string;
           created_at?: string;
         };
@@ -69,7 +69,7 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           content: string;
-          status: 'sent' | 'delivered' | 'read';
+          status: "sent" | "delivered" | "read";
           created_at: string;
         };
         Insert: {
@@ -77,7 +77,7 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           content: string;
-          status?: 'sent' | 'delivered' | 'read';
+          status?: "sent" | "delivered" | "read";
           created_at?: string;
         };
         Update: {
@@ -85,8 +85,37 @@ export type Database = {
           conversation_id?: string;
           sender_id?: string;
           content?: string;
-          status?: 'sent' | 'delivered' | 'read';
+          status?: "sent" | "delivered" | "read";
           created_at?: string;
+        };
+      };
+      chat_invitations: {
+        Row: {
+          id: string;
+          sender_id: string;
+          recipient_id: string;
+          status: "pending" | "accepted" | "rejected" | "cancelled";
+          message: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          sender_id: string;
+          recipient_id: string;
+          status?: "pending" | "accepted" | "rejected" | "cancelled";
+          message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          sender_id?: string;
+          recipient_id?: string;
+          status?: "pending" | "accepted" | "rejected" | "cancelled";
+          message?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
       };
     };

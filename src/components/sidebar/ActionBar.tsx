@@ -1,5 +1,6 @@
 import React from "react";
 import { RefreshCw, Users, Settings } from "lucide-react";
+import { InvitationNotification } from "../invitations/InvitationNotification";
 
 interface ActionBarProps {
   showUserSearch: boolean;
@@ -56,6 +57,13 @@ export const ActionBar: React.FC<ActionBarProps> = ({
           >
             <Users className="w-4 h-4 md:w-5 md:h-5" />
           </button>
+          {/* Invitation Notifications */}
+          <InvitationNotification
+            onInvitationAccepted={() => {
+              // Handle invitation acceptance
+              console.log("Invitation accepted from ActionBar");
+            }}
+          />
           <button
             onClick={onSettingsClick}
             className="p-2 md:p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg md:rounded-xl transition-all duration-200"

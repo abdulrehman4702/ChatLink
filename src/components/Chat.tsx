@@ -4,6 +4,7 @@ import { ChatSidebar } from "./ChatSidebar";
 import { ChatArea } from "./ChatArea";
 import { Settings } from "./Settings";
 import { HamburgerMenu } from "./HamburgerMenu";
+import { InvitationNotification } from "./invitations/InvitationNotification";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useMobile } from "../contexts/MobileContext";
@@ -118,7 +119,6 @@ export const Chat: React.FC = () => {
       navigate("/");
     }
   };
-
 
   return (
     <div className="h-screen flex bg-white relative overflow-hidden">
@@ -269,6 +269,20 @@ export const Chat: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Invitation Notification */}
+      <InvitationNotification
+        onInvitationAccepted={() => {
+          // When an invitation is accepted, navigate to the new conversation
+          // The conversation should be automatically created by the database trigger
+          // We'll need to find the conversation and navigate to it
+          setTimeout(() => {
+            navigate("/");
+            // Refresh the page to show the new conversation
+            window.location.reload();
+          }, 1000);
+        }}
+      />
     </div>
   );
 };

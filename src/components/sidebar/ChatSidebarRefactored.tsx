@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { LogOut, MessageCircle, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SidebarHeader } from "./SidebarHeader";
@@ -6,8 +6,12 @@ import { ActionBar } from "./ActionBar";
 import { UserItem } from "./UserItem";
 import { ConversationItem } from "./ConversationItem";
 import { ConversationSkeleton, UserSkeleton } from "../Skeleton";
+import { InvitationModal } from "../invitations/InvitationModal";
+import { ModalWrapper } from "../common/ModalWrapper";
 import { useSidebar } from "../../hooks/useSidebar";
 import { useAuth } from "../../contexts/AuthContext";
+import { useInvitations } from "../../hooks/useInvitations";
+import { useModal } from "../../hooks/useModal";
 
 interface User {
   id: string;
@@ -29,6 +33,10 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [invitationModalOpen, setInvitationModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const { modalState, hideModal, showAlert } = useModal();
+
   const {
     searchQuery,
     setSearchQuery,
@@ -42,14 +50,50 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
     unreadCounts,
     totalUnreadCount,
     onlineUsers,
-    startNewConversation,
     handleRefresh,
     handleLogout,
     markAsRead,
   } = useSidebar(selectedConversation);
 
-  const handleUserClick = (user: User) => {
-    startNewConversation(user, onSelectConversation);
+  const { getInvitationStatus } = useInvitations();
+
+  const handleUserClick = async (user: User) => {
+    // Check if there's already a conversation or invitation
+    const invitationStatus = await getInvitationStatus(user.id);
+
+    if (invitationStatus === "conversation_exists") {
+      // Conversation already exists, navigate to it
+      showAlert(
+        "Conversation Exists",
+        "You already have a conversation with this user. Check your conversations list.",
+        "info"
+      );
+      return;
+    }
+
+    if (invitationStatus === "sent") {
+      // Show message that invitation is already sent
+      showAlert(
+        "Invitation Already Sent",
+        "You have already sent an invitation to this user. Please wait for their response.",
+        "warning"
+      );
+      return;
+    }
+
+    if (invitationStatus === "received") {
+      // Show message that user has sent you an invitation
+      showAlert(
+        "Invitation Received",
+        "This user has already sent you an invitation. Please check your notifications to accept or decline it.",
+        "info"
+      );
+      return;
+    }
+
+    // Open invitation modal
+    setSelectedUser(user);
+    setInvitationModalOpen(true);
   };
 
   const handleConversationClick = (conversationId: string, otherUser: User) => {
@@ -161,6 +205,30 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
           <span className="font-semibold text-base md:text-lg">Logout</span>
         </button>
       </div>
+
+      {/* Invitation Modal */}
+      <InvitationModal
+        isOpen={invitationModalOpen}
+        onClose={() => {
+          setInvitationModalOpen(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+      />
+
+      {/* Alert Modal */}
+      <ModalWrapper
+        isOpen={modalState.isOpen}
+        onClose={hideModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+        onConfirm={modalState.onConfirm}
+        onCancel={modalState.onCancel}
+        confirmText={modalState.confirmText}
+        cancelText={modalState.cancelText}
+        showActions={modalState.showActions}
+      />
     </div>
   );
 };
