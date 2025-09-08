@@ -59,11 +59,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       connectionAttempts.current = 0; // Reset attempts for new user
 
       // Use environment variable for socket URL or default to localhost for development
-      const socketUrl =
-        import.meta.env.VITE_SOCKET_URL ||
-        (import.meta.env.DEV
-          ? "http://localhost:3001"
-          : window.location.origin);
+      const socketUrl = "https://chatlink-b2q6.onrender.com/";
+      // const socketUrl =
+      //   import.meta.env.VITE_SOCKET_URL ||
+      //   (import.meta.env.DEV
+      //     ? "https://chatlink-b2q6.onrender.com/"
+      //     : window.location.origin);
 
       const newSocket = io(socketUrl, {
         transports: ["polling"], // Only use polling to avoid WebSocket issues
