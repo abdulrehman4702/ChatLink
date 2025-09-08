@@ -85,9 +85,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
-              {otherUser.full_name.charAt(0).toUpperCase()}
-            </div>
+            {otherUser.avatar_url ? (
+              <img
+                src={otherUser.avatar_url}
+                alt={otherUser.full_name}
+                className="w-10 h-10 rounded-full object-cover shadow-md"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                {otherUser.full_name.charAt(0).toUpperCase()}
+              </div>
+            )}
             {onlineUsers.has(otherUser.id) && (
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
             )}

@@ -4,6 +4,8 @@ import { Search } from "lucide-react";
 interface SidebarHeaderProps {
   user: {
     email?: string;
+    avatar_url?: string;
+    full_name?: string;
   } | null;
   searchQuery: string;
   onSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -27,9 +29,18 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         {/* User Profile Section */}
         <div className="flex items-center space-x-3 md:space-x-4 mb-4 md:mb-6">
           <div className="relative">
-            <div className="w-10 h-10 md:w-14 md:h-14 bg-white/20 backdrop-blur-sm rounded-xl md:rounded-2xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-2xl border border-white/30">
-              {user?.email?.charAt(0).toUpperCase()}
-            </div>
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt="Profile"
+                className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl shadow-2xl border border-white/30 object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 md:w-14 md:h-14 bg-white/20 backdrop-blur-sm rounded-xl md:rounded-2xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-2xl border border-white/30">
+                {user?.full_name?.charAt(0).toUpperCase() ||
+                  user?.email?.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 bg-green-400 border-2 border-white rounded-full shadow-lg"></div>
             {totalUnreadCount > 0 && (
               <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded-full min-w-[16px] md:min-w-[20px] text-center shadow-lg animate-bounce">
@@ -39,7 +50,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-bold text-white text-base md:text-lg truncate">
-              {user?.email}
+              {user?.full_name || user?.email}
             </div>
             <div className="text-indigo-100 text-xs md:text-sm flex items-center">
               <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-green-300 rounded-full mr-1.5 md:mr-2 animate-pulse"></div>

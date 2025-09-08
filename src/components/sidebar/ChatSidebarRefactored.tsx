@@ -9,7 +9,7 @@ import { ConversationSkeleton, UserSkeleton } from "../Skeleton";
 import { InvitationModal } from "../invitations/InvitationModal";
 import { ModalWrapper } from "../common/ModalWrapper";
 import { useSidebar } from "../../hooks/useSidebar";
-import { useAuth } from "../../hooks/useAuth";
+import { useUserProfile } from "../../hooks/useUserProfile";
 import { useInvitations } from "../../hooks/useInvitations";
 import { useModal } from "../../hooks/useModal";
 
@@ -31,7 +31,7 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
   selectedConversation,
   onSelectConversation,
 }) => {
-  const { user } = useAuth();
+  const { userProfile } = useUserProfile();
   const navigate = useNavigate();
   const [invitationModalOpen, setInvitationModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -110,7 +110,7 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
   return (
     <div className="w-full bg-white border-r border-gray-200 flex flex-col h-full shadow-xl">
       <SidebarHeader
-        user={user}
+        user={userProfile}
         searchQuery={searchQuery}
         onSearchChange={(e) => setSearchQuery(e.target.value)}
         totalUnreadCount={totalUnreadCount}

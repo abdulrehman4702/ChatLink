@@ -43,9 +43,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "sent":
-        return <Check className="w-4 h-4 text-gray-600" />;
+        return <Check className="w-4 h-4 text-gray-400" />;
       case "delivered":
-        return <CheckCheck className="w-4 h-4 text-gray-600" />;
+        return <CheckCheck className="w-4 h-4 text-gray-500" />;
       case "read":
         return <CheckCheck className="w-4 h-4 text-blue-500" />;
       default:
@@ -107,7 +107,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             } space-x-1 ${isOwn ? "text-green-100" : "text-gray-500"}`}
           >
             <span>{formatMessageTime(message.created_at)}</span>
-            {isOwn && getStatusIcon(message.status)}
+            {isOwn && (
+              <div title={`Message ${message.status}`}>
+                {getStatusIcon(message.status)}
+              </div>
+            )}
           </div>
         </div>
       </div>
