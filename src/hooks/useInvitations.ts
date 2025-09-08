@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../contexts/AuthContext";
-import { useSocket } from "../contexts/SocketContext";
+import { useAuth } from "./useAuth";
+import { useSocket } from "./useSocket";
 
 export interface ChatInvitation {
   id: string;
@@ -31,12 +31,22 @@ export const useInvitations = () => {
   >([]);
   const [sentInvitations, setSentInvitations] = useState<ChatInvitation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const { user } = useAuth();
   const { socket } = useSocket();
 
   const loadPendingInvitations = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log("No user available for loading pending invitations");
+      return;
+    }
 
+    if (loading) {
+      console.log("Already loading pending invitations, skipping...");
+      return;
+    }
+
+    console.log("Loading pending invitations for user:", user.id);
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -56,6 +66,7 @@ export const useInvitations = () => {
         return;
       }
 
+      console.log("Loaded pending invitations:", data);
       setPendingInvitations(data || []);
     } catch (error) {
       console.error("Error in loadPendingInvitations:", error);
@@ -308,22 +319,36 @@ export const useInvitations = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && !isInitialized) {
+      console.log("Initializing invitations for user:", user.id);
+      setIsInitialized(true);
       loadPendingInvitations();
       loadSentInvitations();
+    } else if (!user && isInitialized) {
+      console.log("Clearing invitations - user logged out");
+      setIsInitialized(false);
+      setPendingInvitations([]);
+      setSentInvitations([]);
     }
-  }, [user]);
+  }, [user?.id, isInitialized]); // Use user.id instead of user object to prevent unnecessary re-renders
 
   // Socket event listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !user) {
+      console.log("No socket or user available for invitation events");
+      return;
+    }
 
-    const handleInvitationReceived = () => {
+    console.log("Setting up invitation socket event listeners");
+
+    const handleInvitationReceived = (data: any) => {
+      console.log("Invitation received via socket:", data);
       // Reload pending invitations when a new one is received
       loadPendingInvitations();
     };
 
-    const handleInvitationResponse = () => {
+    const handleInvitationResponse = (data: any) => {
+      console.log("Invitation response received via socket:", data);
       // Reload sent invitations when a response is received
       loadSentInvitations();
     };
@@ -332,10 +357,11 @@ export const useInvitations = () => {
     socket.on("invitation_response", handleInvitationResponse);
 
     return () => {
+      console.log("Cleaning up invitation socket event listeners");
       socket.off("invitation_received", handleInvitationReceived);
       socket.off("invitation_response", handleInvitationResponse);
     };
-  }, [socket]);
+  }, [socket, user]); // Removed loading dependency to prevent infinite loops
 
   return {
     pendingInvitations,

@@ -9,7 +9,7 @@ import { ConversationSkeleton, UserSkeleton } from "../Skeleton";
 import { InvitationModal } from "../invitations/InvitationModal";
 import { ModalWrapper } from "../common/ModalWrapper";
 import { useSidebar } from "../../hooks/useSidebar";
-import { useAuth } from "../../contexts/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { useInvitations } from "../../hooks/useInvitations";
 import { useModal } from "../../hooks/useModal";
 

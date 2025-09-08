@@ -6,7 +6,7 @@ import { Settings } from "./Settings";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { InvitationNotification } from "./invitations/InvitationNotification";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useMobile } from "../contexts/MobileContext";
 
 interface User {
@@ -275,12 +275,8 @@ export const Chat: React.FC = () => {
         onInvitationAccepted={() => {
           // When an invitation is accepted, navigate to the new conversation
           // The conversation should be automatically created by the database trigger
-          // We'll need to find the conversation and navigate to it
-          setTimeout(() => {
-            navigate("/");
-            // Refresh the page to show the new conversation
-            window.location.reload();
-          }, 1000);
+          // Navigate to home to refresh the conversation list
+          navigate("/");
         }}
       />
     </div>

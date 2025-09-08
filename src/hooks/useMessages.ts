@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useSocket } from "../contexts/SocketContext";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useAuth } from "./useAuth";
+import { useSocket } from "./useSocket";
+import { useNotifications } from "./useNotifications";
 import { supabase } from "../lib/supabase";
 
 interface Message {
@@ -42,8 +42,12 @@ export const useMessages = (
   } = useSocket();
   const { markAsRead } = useNotifications();
 
-  const loadMessages = async () => {
-    if (!conversationId) return;
+  const loadMessages = useCallback(async () => {
+    if (!conversationId) {
+      setMessages([]);
+      setLoadingMessages(false);
+      return;
+    }
 
     setLoadingMessages(true);
     try {
@@ -55,13 +59,16 @@ export const useMessages = (
 
       if (!error && data) {
         setMessages(data);
+      } else {
+        setMessages([]);
       }
     } catch (error) {
       console.error("Error loading messages:", error);
+      setMessages([]);
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, [conversationId]);
 
   const markMessagesAsRead = async (conversationId: string) => {
     if (!user || !socket) return;
@@ -126,6 +133,7 @@ export const useMessages = (
     } else {
       // Clear messages when no conversation is selected
       setMessages([]);
+      setLoadingMessages(false);
     }
 
     // Cleanup: leave conversation room when component unmounts or conversation changes
@@ -136,10 +144,11 @@ export const useMessages = (
     };
   }, [
     conversationId,
+    loadMessages,
     joinConversation,
     leaveConversation,
     currentConversationId,
-  ]); // Removed markAsRead from dependencies
+  ]); // Added loadMessages to dependencies
 
   // Handle typing status
   useEffect(() => {

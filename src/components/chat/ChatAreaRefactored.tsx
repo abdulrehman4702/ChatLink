@@ -8,8 +8,8 @@ import { MessageInput } from "./MessageInput";
 import { useMessages } from "../../hooks/useMessages";
 import { useMessageSearch } from "../../hooks/useMessageSearch";
 import { useMessageSend } from "../../hooks/useMessageSend";
-import { useAuth } from "../../contexts/AuthContext";
-import { useSocket } from "../../contexts/SocketContext";
+import { useAuth } from "../../hooks/useAuth";
+import { useSocket } from "../../hooks/useSocket";
 import { supabase } from "../../lib/supabase";
 
 interface User {

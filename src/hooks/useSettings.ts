@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useAuth } from "./useAuth";
+import { useNotifications } from "./useNotifications";
 import { supabase } from "../lib/supabase";
 
 interface UserSettings {

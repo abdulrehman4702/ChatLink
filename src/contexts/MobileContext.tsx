@@ -7,11 +7,19 @@ interface MobileContextType {
   toggleSidebar: () => void;
 }
 
-const MobileContext = createContext<MobileContextType | undefined>(undefined);
+// Create default values for better Fast Refresh compatibility
+const defaultContextValue: MobileContextType = {
+  isMobile: false,
+  sidebarOpen: false,
+  setSidebarOpen: () => {},
+  toggleSidebar: () => {},
+};
+
+const MobileContext = createContext<MobileContextType>(defaultContextValue);
 
 export const useMobile = () => {
   const context = useContext(MobileContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useMobile must be used within a MobileProvider");
   }
   return context;

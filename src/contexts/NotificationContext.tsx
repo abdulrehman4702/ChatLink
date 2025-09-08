@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useContext,
+} from "react";
 import { useAuth } from "./AuthContext";
 import { useSocket } from "./SocketContext";
 import { supabase } from "../lib/supabase";
@@ -33,19 +40,29 @@ interface NotificationContextType {
   showDesktopNotification: (title: string, body: string, icon?: string) => void;
 }
 
-const NotificationContext = createContext<NotificationContextType>(
-  {} as NotificationContextType
-);
-
-export const useNotifications = () => {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error(
-      "useNotifications must be used within a NotificationProvider"
-    );
-  }
-  return context;
+// Create default values for better Fast Refresh compatibility
+const defaultNotificationSettings: NotificationSettings = {
+  email_notifications: true,
+  push_notifications: true,
+  message_notifications: true,
+  sound_notifications: true,
+  desktop_notifications: true,
 };
+
+const defaultContextValue: NotificationContextType = {
+  unreadCounts: new Map(),
+  totalUnreadCount: 0,
+  notificationSettings: defaultNotificationSettings,
+  unreadMessages: [],
+  updateNotificationSettings: async () => {},
+  markAsRead: async () => {},
+  markAllAsRead: async () => {},
+  playNotificationSound: () => {},
+  showDesktopNotification: () => {},
+};
+
+export const NotificationContext =
+  createContext<NotificationContextType>(defaultContextValue);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -102,10 +119,38 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         .single();
 
       if (error) {
-        // If table doesn't exist or user has no settings, use defaults
+        // If table doesn't exist or user has no settings, create default settings
         if (error.code === "PGRST116" || error.code === "42P01") {
+          // Create default settings for the user
+          try {
+            const { error: insertError } = await supabase
+              .from("user_settings")
+              .insert({
+                user_id: user.id,
+                email_notifications: true,
+                push_notifications: true,
+                message_notifications: true,
+                sound_notifications: true,
+                desktop_notifications: true,
+              });
+
+            if (insertError) {
+              console.error("Error creating default settings:", insertError);
+            }
+          } catch (insertError) {
+            console.error("Error creating default settings:", insertError);
+          }
           return;
         }
+
+        // Handle column doesn't exist error
+        if (error.message?.includes("does not exist")) {
+          console.warn(
+            "Notification settings columns missing - using defaults"
+          );
+          return;
+        }
+
         console.error("Error loading notification settings:", error);
         return;
       }
@@ -235,62 +280,66 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     loadUnreadCounts();
   };
 
-  const updateNotificationSettings = async (
-    settings: Partial<NotificationSettings>
-  ) => {
-    if (!user) return;
+  const updateNotificationSettings = useCallback(
+    async (settings: Partial<NotificationSettings>) => {
+      if (!user) return;
 
-    try {
-      const newSettings = { ...notificationSettings, ...settings };
-      setNotificationSettings(newSettings);
+      try {
+        const newSettings = { ...notificationSettings, ...settings };
+        setNotificationSettings(newSettings);
 
-      const { error } = await supabase.from("user_settings").upsert({
-        user_id: user.id,
-        email_notifications: newSettings.email_notifications,
-        push_notifications: newSettings.push_notifications,
-        message_notifications: newSettings.message_notifications,
-        sound_notifications: newSettings.sound_notifications,
-        desktop_notifications: newSettings.desktop_notifications,
-        updated_at: new Date().toISOString(),
-      });
+        const { error } = await supabase.from("user_settings").upsert({
+          user_id: user.id,
+          email_notifications: newSettings.email_notifications,
+          push_notifications: newSettings.push_notifications,
+          message_notifications: newSettings.message_notifications,
+          sound_notifications: newSettings.sound_notifications,
+          desktop_notifications: newSettings.desktop_notifications,
+          updated_at: new Date().toISOString(),
+        });
 
-      if (error) {
+        if (error) {
+          console.error("Error updating notification settings:", error);
+          // Still update local state even if database update fails
+        }
+      } catch (error) {
         console.error("Error updating notification settings:", error);
-        // Still update local state even if database update fails
       }
-    } catch (error) {
-      console.error("Error updating notification settings:", error);
-    }
-  };
+    },
+    [user, notificationSettings]
+  );
 
-  const markAsRead = async (conversationId: string) => {
-    if (!user) return;
+  const markAsRead = useCallback(
+    async (conversationId: string) => {
+      if (!user) return;
 
-    try {
-      // Update message status to read
-      await supabase
-        .from("messages")
-        .update({ status: "read" })
-        .eq("conversation_id", conversationId)
-        .neq("sender_id", user.id)
-        .eq("status", "sent");
+      try {
+        // Update message status to read
+        await supabase
+          .from("messages")
+          .update({ status: "read" })
+          .eq("conversation_id", conversationId)
+          .neq("sender_id", user.id)
+          .eq("status", "sent");
 
-      // Update local state
-      setUnreadCounts((prev) => {
-        const newMap = new Map(prev);
-        newMap.delete(conversationId);
-        return newMap;
-      });
+        // Update local state
+        setUnreadCounts((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(conversationId);
+          return newMap;
+        });
 
-      setUnreadMessages((prev) =>
-        prev.filter((msg) => msg.conversation_id !== conversationId)
-      );
-    } catch (error) {
-      console.error("Error marking as read:", error);
-    }
-  };
+        setUnreadMessages((prev) =>
+          prev.filter((msg) => msg.conversation_id !== conversationId)
+        );
+      } catch (error) {
+        console.error("Error marking as read:", error);
+      }
+    },
+    [user]
+  );
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -307,9 +356,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (error) {
       console.error("Error marking all as read:", error);
     }
-  };
+  }, [user]);
 
-  const playNotificationSound = () => {
+  const playNotificationSound = useCallback(() => {
     try {
       // Create a simple beep sound using Web Audio API
       const audioContext = new (window.AudioContext ||
@@ -335,22 +384,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       console.error("Error playing notification sound:", error);
       // Fallback to system beep
     }
-  };
+  }, []);
 
-  const showDesktopNotification = (
-    title: string,
-    body: string,
-    icon?: string
-  ) => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(title, {
-        body,
-        icon: icon || "/favicon.ico",
-        badge: "/favicon.ico",
-        tag: "chatlink-message",
-      });
-    }
-  };
+  const showDesktopNotification = useCallback(
+    (title: string, body: string, icon?: string) => {
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+          body,
+          icon: icon || "/favicon.ico",
+          badge: "/favicon.ico",
+          tag: "chatlink-message",
+        });
+      }
+    },
+    []
+  );
 
   const requestNotificationPermission =
     async (): Promise<NotificationPermission> => {
@@ -368,21 +416,45 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     0
   );
 
+  const contextValue = useMemo(
+    () => ({
+      unreadCounts,
+      totalUnreadCount,
+      notificationSettings,
+      unreadMessages,
+      updateNotificationSettings,
+      markAsRead,
+      markAllAsRead,
+      playNotificationSound,
+      showDesktopNotification,
+    }),
+    [
+      unreadCounts,
+      totalUnreadCount,
+      notificationSettings,
+      unreadMessages,
+      updateNotificationSettings,
+      markAsRead,
+      markAllAsRead,
+      playNotificationSound,
+      showDesktopNotification,
+    ]
+  );
+
   return (
-    <NotificationContext.Provider
-      value={{
-        unreadCounts,
-        totalUnreadCount,
-        notificationSettings,
-        unreadMessages,
-        updateNotificationSettings,
-        markAsRead,
-        markAllAsRead,
-        playNotificationSound,
-        showDesktopNotification,
-      }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );
+};
+
+// Export the hook from the context file for better Fast Refresh compatibility
+export const useNotifications = () => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error(
+      "useNotifications must be used within a NotificationProvider"
+    );
+  }
+  return context;
 };

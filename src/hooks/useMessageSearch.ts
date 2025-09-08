@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "./useAuth";
 import { supabase } from "../lib/supabase";
 
 interface Message {

@@ -1,11 +1,11 @@
 import React, {
   createContext,
-  useContext,
   useEffect,
   useState,
   useMemo,
   useCallback,
   useRef,
+  useContext,
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
@@ -21,15 +21,20 @@ interface SocketContextType {
   reconnect: () => void;
 }
 
-const SocketContext = createContext<SocketContextType>({} as SocketContextType);
-
-export const useSocket = () => {
-  const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error("useSocket must be used within a SocketProvider");
-  }
-  return context;
+// Create default values for better Fast Refresh compatibility
+const defaultContextValue: SocketContextType = {
+  socket: null,
+  onlineUsers: new Set(),
+  typingUsers: new Set(),
+  joinConversation: () => {},
+  leaveConversation: () => {},
+  currentConversationId: null,
+  isConnected: false,
+  reconnect: () => {},
 };
+
+export const SocketContext =
+  createContext<SocketContextType>(defaultContextValue);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -49,35 +54,46 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Create socket only once when user changes
   useEffect(() => {
-    if (
-      user &&
-      !socketRef.current &&
-      !isCreatingSocket.current &&
-      connectionAttempts.current < maxConnectionAttempts
-    ) {
+    if (user && !socketRef.current && !isCreatingSocket.current) {
       isCreatingSocket.current = true;
-      connectionAttempts.current += 1;
+      connectionAttempts.current = 0; // Reset attempts for new user
 
-      const newSocket = io("http://localhost:3001", {
+      // Use environment variable for socket URL or default to localhost for development
+      const socketUrl =
+        import.meta.env.VITE_SOCKET_URL ||
+        (import.meta.env.DEV
+          ? "http://localhost:3001"
+          : window.location.origin);
+
+      const newSocket = io(socketUrl, {
         transports: ["polling"], // Only use polling to avoid WebSocket issues
         upgrade: false, // Disable WebSocket upgrade completely
         rememberUpgrade: false,
-        timeout: 15000,
-        forceNew: false,
+        timeout: 10000,
+        forceNew: true,
         reconnection: true,
-        reconnectionAttempts: 2, // Very limited attempts
-        reconnectionDelay: 3000,
-        reconnectionDelayMax: 15000,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 10000,
+        autoConnect: true,
       });
 
       newSocket.on("connect", () => {
+        console.log("Socket connected successfully");
         setIsConnected(true);
         connectionAttempts.current = 0; // Reset attempts on successful connection
         newSocket.emit("join", user.id);
       });
 
-      newSocket.on("disconnect", () => {
+      newSocket.on("disconnect", (reason) => {
+        console.log("Socket disconnected:", reason);
         setIsConnected(false);
+
+        // Only attempt reconnection for certain disconnect reasons
+        if (reason === "io client disconnect") {
+          // User manually disconnected, don't reconnect
+          return;
+        }
       });
 
       newSocket.on("reconnect", () => {
@@ -93,11 +109,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       });
 
-      newSocket.on("connect_error", () => {
+      newSocket.on("connect_error", (error) => {
+        console.error("Socket connection error:", error);
         setIsConnected(false);
+        connectionAttempts.current += 1;
 
         // If we've exceeded max attempts, stop trying
         if (connectionAttempts.current >= maxConnectionAttempts) {
+          console.error("Max socket connection attempts reached");
           newSocket.disconnect();
           isCreatingSocket.current = false;
         }
@@ -140,32 +159,34 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       socketRef.current = newSocket;
       setSocket(newSocket);
       isCreatingSocket.current = false;
-
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-        }
-        setSocket(null);
-        setOnlineUsers(new Set());
-        setTypingUsers(new Set());
-        setIsConnected(false);
-        isCreatingSocket.current = false;
-        connectionAttempts.current = 0; // Reset attempts on cleanup
-      };
     } else if (!user && socketRef.current) {
       // Clean up when user logs out
-
+      console.log("Cleaning up socket for user logout");
       socketRef.current.disconnect();
       socketRef.current = null;
       setSocket(null);
       setOnlineUsers(new Set());
       setTypingUsers(new Set());
       setIsConnected(false);
+      isCreatingSocket.current = false;
       connectionAttempts.current = 0; // Reset attempts on logout
-    } else if (connectionAttempts.current >= maxConnectionAttempts) {
     }
-  }, [user]); // Only depend on user
+
+    // Cleanup function
+    return () => {
+      if (!user && socketRef.current) {
+        console.log("Socket cleanup in useEffect return");
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setOnlineUsers(new Set());
+        setTypingUsers(new Set());
+        setIsConnected(false);
+        isCreatingSocket.current = false;
+        connectionAttempts.current = 0;
+      }
+    };
+  }, [user?.id]); // Only depend on user ID to prevent unnecessary re-renders
 
   // Handle room joining when conversation changes
   useEffect(() => {
@@ -244,4 +265,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
     </SocketContext.Provider>
   );
+};
+
+// Export the hook from the context file for better Fast Refresh compatibility
+export const useSocket = () => {
+  const context = useContext(SocketContext);
+  if (!context) {
+    throw new Error("useSocket must be used within a SocketProvider");
+  }
+  return context;
 };

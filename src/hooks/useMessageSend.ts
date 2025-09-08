@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useSocket } from "../contexts/SocketContext";
+import { useAuth } from "./useAuth";
+import { useSocket } from "./useSocket";
 import { supabase } from "../lib/supabase";
 
 interface User {

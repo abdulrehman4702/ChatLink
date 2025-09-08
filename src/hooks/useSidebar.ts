@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useSocket } from "../contexts/SocketContext";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useAuth } from "./useAuth";
+import { useSocket } from "./useSocket";
+import { useNotifications } from "./useNotifications";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 
@@ -29,7 +29,7 @@ export const useSidebar = (selectedConversation: string | null) => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
   const { user, signOut } = useAuth();
@@ -189,14 +189,27 @@ export const useSidebar = (selectedConversation: string | null) => {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    navigate("/auth");
+    try {
+      console.log("Logout initiated");
+      await signOut();
+      console.log("Sign out successful");
+      // Don't force navigation - let React Router handle it based on auth state
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Still don't force navigation - let the auth state change handle it
+    }
   };
 
   useEffect(() => {
     if (user) {
       loadConversations();
       loadAllUsers();
+    } else {
+      // Reset states when user logs out
+      setConversations([]);
+      setAllUsers([]);
+      setLoadingConversations(false);
+      setLoadingUsers(false);
     }
   }, [user]);
 

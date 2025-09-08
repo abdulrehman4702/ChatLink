@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { MessageCircle } from 'lucide-react';
+import React, { useState } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { MessageCircle } from "lucide-react";
 
 export const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
+  const [error, setError] = useState("");
+
   const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       if (isLogin) {
@@ -41,7 +41,9 @@ export const Auth: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">ChatApp</h1>
           <p className="text-gray-600 mt-2">
-            {isLogin ? 'Welcome back! Sign in to continue.' : 'Create your account to get started.'}
+            {isLogin
+              ? "Welcome back! Sign in to continue."
+              : "Create your account to get started."}
           </p>
         </div>
 
@@ -61,7 +63,7 @@ export const Auth: React.FC = () => {
               />
             </div>
           )}
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email
@@ -75,7 +77,7 @@ export const Auth: React.FC = () => {
               placeholder="Enter your email"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password
@@ -102,7 +104,7 @@ export const Auth: React.FC = () => {
             disabled={loading}
             className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
+            {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
           </button>
         </form>
 
@@ -111,7 +113,9 @@ export const Auth: React.FC = () => {
             onClick={() => setIsLogin(!isLogin)}
             className="text-green-600 hover:text-green-700 text-sm font-medium"
           >
-            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            {isLogin
+              ? "Don't have an account? Sign up"
+              : "Already have an account? Sign in"}
           </button>
         </div>
       </div>
