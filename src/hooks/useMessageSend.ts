@@ -84,22 +84,32 @@ export const useMessageSend = (
       })
       .eq("id", conversationId);
 
-    // Add message to local state immediately for sender
-    if (addMessage) {
-      addMessage({
-        ...message,
-        conversation_id: conversationId,
-      });
-    }
-
-    // Send via socket
+    // Send via socket first to ensure real-time delivery
     if (socket) {
+      console.log("Sending message via socket:", {
+        recipientId: otherUser.id,
+        message: message.content,
+        senderId: user.id,
+        messageId,
+        conversationId: conversationId,
+      });
+
       socket.emit("send_message", {
         recipientId: otherUser.id,
         message: message.content,
         senderId: user.id,
         messageId,
         conversationId: conversationId,
+      });
+    } else {
+      console.warn("Socket not available for message sending");
+    }
+
+    // Add message to local state after socket emission
+    if (addMessage) {
+      addMessage({
+        ...message,
+        conversation_id: conversationId,
       });
     }
 

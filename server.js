@@ -50,6 +50,10 @@ io.on("connection", (socket) => {
   socket.on("join_conversation", (data) => {
     const { conversationId, userId } = data;
 
+    console.log(
+      `User ${userId} joining conversation room: conversation_${conversationId}`
+    );
+
     // Join the conversation room
     socket.join(`conversation_${conversationId}`);
 
@@ -58,6 +62,11 @@ io.on("connection", (socket) => {
       userRooms.set(userId, new Set());
     }
     userRooms.get(userId).add(conversationId);
+
+    console.log(
+      `User ${userId} successfully joined conversation_${conversationId}`
+    );
+    console.log("Current user rooms:", Array.from(userRooms.get(userId) || []));
 
     // Send confirmation that user joined the room
     socket.emit("conversation_joined", { conversationId });
@@ -80,6 +89,8 @@ io.on("connection", (socket) => {
   socket.on("send_message", (data) => {
     const { recipientId, message, senderId, messageId, conversationId } = data;
 
+    console.log("Received send_message event:", data);
+
     // Send message to the conversation room with "sent" status first
     const messageData = {
       id: messageId,
@@ -90,6 +101,25 @@ io.on("connection", (socket) => {
       status: "sent",
     };
 
+    console.log(
+      "Broadcasting message to conversation room:",
+      `conversation_${conversationId}`
+    );
+    console.log("Message data:", messageData);
+
+    // Check which sockets are in the conversation room
+    const room = io.sockets.adapter.rooms.get(`conversation_${conversationId}`);
+    if (room) {
+      console.log(
+        `Room conversation_${conversationId} has ${room.size} sockets:`,
+        Array.from(room)
+      );
+    } else {
+      console.log(
+        `Room conversation_${conversationId} does not exist or is empty`
+      );
+    }
+
     io.to(`conversation_${conversationId}`).emit(
       "receive_message",
       messageData
@@ -97,6 +127,8 @@ io.on("connection", (socket) => {
 
     // Send delivery confirmation after a short delay
     setTimeout(() => {
+      console.log("Sending delivery confirmation for message:", messageId);
+
       // Send delivery confirmation to sender's personal room
       io.to(`user_${senderId}`).emit("message_status", {
         messageId,

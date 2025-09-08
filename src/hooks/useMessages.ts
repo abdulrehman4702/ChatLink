@@ -162,16 +162,28 @@ export const useMessages = (
   // Create stable callback functions outside of useEffect
   const handleReceiveMessage = useCallback(
     (message: Message) => {
+      console.log("Received message via socket:", message);
+
       // Check both field names for compatibility
       const messageConversationId =
         message.conversation_id || (message as any).conversationId;
 
+      console.log(
+        "Message conversation ID:",
+        messageConversationId,
+        "Current conversation ID:",
+        conversationId
+      );
+
       if (messageConversationId === conversationId) {
+        console.log("Message matches current conversation, adding to state");
+
         // Update state immediately without debouncing
         setMessages((prev) => {
           // Check if message already exists to prevent duplicates
           const exists = prev.some((msg) => msg.id === message.id);
           if (exists) {
+            console.log("Message already exists, skipping");
             return prev;
           }
 
@@ -186,9 +198,11 @@ export const useMessages = (
               message.conversation_id || (message as any).conversationId,
           };
 
+          console.log("Adding normalized message to state:", normalizedMessage);
           return [...prev, normalizedMessage];
         });
       } else {
+        console.log("Message doesn't match current conversation, ignoring");
       }
     },
     [conversationId]
@@ -212,7 +226,15 @@ export const useMessages = (
 
   // Socket event listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log("Socket not available for message listeners");
+      return;
+    }
+
+    console.log(
+      "Setting up socket event listeners for conversation:",
+      conversationId
+    );
 
     socket.on("receive_message", handleReceiveMessage);
     socket.on("message_status", handleMessageStatus);
@@ -220,7 +242,9 @@ export const useMessages = (
 
     // Handle conversation room join confirmation - reload messages to ensure sync
     const handleConversationJoined = (data: { conversationId: string }) => {
+      console.log("Conversation joined event received:", data);
       if (data.conversationId === conversationId) {
+        console.log("Reloading messages after conversation join");
         loadMessages();
       }
     };
@@ -228,6 +252,7 @@ export const useMessages = (
     socket.on("conversation_joined", handleConversationJoined);
 
     return () => {
+      console.log("Cleaning up socket event listeners");
       socket.off("receive_message", handleReceiveMessage);
       socket.off("message_status", handleMessageStatus);
       socket.off("message_read", handleMessageRead);
@@ -244,10 +269,15 @@ export const useMessages = (
 
   // Function to add a message locally (for sender's own messages)
   const addMessage = useCallback((message: Message) => {
+    console.log("Adding message locally:", message);
     setMessages((prev) => {
       // Check if message already exists to prevent duplicates
       const exists = prev.some((msg) => msg.id === message.id);
-      if (exists) return prev;
+      if (exists) {
+        console.log("Message already exists in local state, skipping");
+        return prev;
+      }
+      console.log("Adding message to local state");
       return [...prev, message];
     });
   }, []);
