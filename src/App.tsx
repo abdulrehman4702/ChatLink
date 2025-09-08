@@ -4,8 +4,10 @@ import { useAuth } from "./hooks/useAuth";
 import { SocketProvider } from "./contexts/SocketContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { MobileProvider } from "./contexts/MobileContext";
-import { Auth } from "./components/Auth";
 import { Chat } from "./components/Chat";
+import { Login } from "./components/auth/Login";
+import { Signup } from "./components/auth/Signup";
+import { HomePage } from "./components/home/HomePage";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 const AppContent: React.FC = () => {
@@ -46,21 +48,25 @@ const AppContent: React.FC = () => {
             {user ? (
               <>
                 <Route path="/" element={<Chat />} />
+                <Route path="/home" element={<HomePage />} />
                 <Route path="/chat/:conversationId" element={<Chat />} />
                 <Route path="/settings" element={<Chat />} />
-                <Route path="/auth" element={<Navigate to="/" replace />} />
+                <Route path="/login" element={<Navigate to="/" replace />} />
+                <Route path="/signup" element={<Navigate to="/" replace />} />
               </>
             ) : (
               <>
-                <Route path="/" element={<Auth />} />
-                <Route path="/auth" element={<Auth />} />
+                <Route path="/" element={<HomePage />} />
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
                 <Route
                   path="/chat/:conversationId"
-                  element={<Navigate to="/auth" replace />}
+                  element={<Navigate to="/login" replace />}
                 />
                 <Route
                   path="/settings"
-                  element={<Navigate to="/auth" replace />}
+                  element={<Navigate to="/login" replace />}
                 />
               </>
             )}

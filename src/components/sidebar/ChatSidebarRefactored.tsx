@@ -214,6 +214,21 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
           setSelectedUser(null);
         }}
         user={selectedUser}
+        onInvitationSent={(success, message) => {
+          if (success) {
+            showAlert(
+              "Invitation Sent",
+              message || "Your chat invitation has been sent successfully!",
+              "success"
+            );
+          } else {
+            showAlert(
+              "Failed to Send Invitation",
+              message || "Failed to send invitation",
+              "error"
+            );
+          }
+        }}
       />
 
       {/* Alert Modal */}

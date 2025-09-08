@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useState,
   useMemo,
-  useCallback,
   useContext,
 } from "react";
 import { User, Session } from "@supabase/supabase-js";
@@ -107,75 +106,112 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  const signUp = useCallback(
-    async (email: string, password: string, fullName: string) => {
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
+  const signUp = async (email: string, password: string, fullName: string) => {
+    try {
+      console.log("Attempting sign up for:", email);
+
+      // Check if user exists in our users table
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", email)
+        .single();
+
+      if (existingUser) {
+        console.log("User already exists in database");
+        return {
+          data: null,
+          error: {
+            message:
+              "An account with this email already exists. Please sign in instead.",
           },
-        });
+        };
+      }
 
-        if (error) {
-          return { data: null, error };
-        }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
 
-        if (!data.user) {
+      if (error) {
+        console.error("Sign up error:", error);
+
+        // Handle specific error cases
+        if (
+          error.message?.includes("User already registered") ||
+          error.message?.includes("already been registered")
+        ) {
+          // User exists in Supabase Auth but not in our database
+          // This means they were deleted from database but not from Auth
           return {
             data: null,
             error: {
-              message: "Failed to create user account. Please try again.",
+              message:
+                "An account with this email exists in our system but was deleted. Please contact support or try a different email.",
             },
           };
         }
 
-        // Create user profile with retry logic
-        let profileError = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const { error } = await supabase.from("users").insert({
-            id: data.user.id,
-            email,
-            full_name: fullName,
-            status: "online",
-            last_seen: new Date().toISOString(),
-          });
+        return { data: null, error };
+      }
 
-          if (!error) break;
-          profileError = error;
-
-          // Wait before retry
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-
-        if (profileError) {
-          console.error("Error creating user profile:", profileError);
-          return { data: null, error: profileError };
-        }
-
-        return { data, error: null };
-      } catch (error) {
-        console.error("Error during sign up:", error);
+      if (!data.user) {
         return {
           data: null,
-          error: { message: "An unexpected error occurred. Please try again." },
+          error: {
+            message: "Failed to create user account. Please try again.",
+          },
         };
       }
-    },
-    []
-  );
 
-  const signIn = useCallback(async (email: string, password: string) => {
+      console.log("Supabase auth signup successful, creating user profile...");
+
+      // Create user profile in our database
+      const { error: insertError } = await supabase.from("users").insert({
+        id: data.user.id,
+        email,
+        full_name: fullName,
+        status: "online",
+        last_seen: new Date().toISOString(),
+      });
+
+      if (insertError) {
+        console.error("Error creating user profile:", insertError);
+        return {
+          data: null,
+          error: {
+            message: "Failed to create user profile. Please try again.",
+          },
+        };
+      }
+
+      console.log("Sign up completed successfully");
+      return { data, error: null };
+    } catch (error) {
+      console.error("Error during sign up:", error);
+      return {
+        data: null,
+        error: { message: "An unexpected error occurred. Please try again." },
+      };
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
     try {
+      console.log("Attempting sign in for:", email);
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error("Sign in error:", error);
         return { data: null, error };
       }
 
@@ -186,7 +222,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      // Ensure user exists in database
+      console.log("Supabase auth successful, checking user in database...");
+
+      // Check if user exists in our users table
       const { error: selectError } = await supabase
         .from("users")
         .select("id")
@@ -194,24 +232,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         .single();
 
       if (selectError && selectError.code === "PGRST116") {
-        // User doesn't exist, create profile
-        const { error: insertError } = await supabase.from("users").insert({
-          id: data.user.id,
-          email: data.user.email || email,
-          full_name: data.user.user_metadata?.full_name || "User",
-          status: "online",
-          last_seen: new Date().toISOString(),
-        });
+        // User doesn't exist in our database - this means they were deleted
+        console.log("User not found in database - they were deleted");
 
-        if (insertError) {
-          console.error("Error creating user profile on sign in:", insertError);
-          return { data: null, error: insertError };
-        }
+        // Sign them out from Supabase Auth
+        await supabase.auth.signOut();
+
+        return {
+          data: null,
+          error: {
+            message: "Your account has been deleted. Please sign up again.",
+          },
+        };
       } else if (selectError) {
         console.error("Error checking user existence:", selectError);
         return { data: null, error: selectError };
       } else {
         // User exists, update status
+        console.log("User found in database, updating status...");
         await supabase
           .from("users")
           .update({
@@ -221,6 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           .eq("id", data.user.id);
       }
 
+      console.log("Sign in completed successfully");
       return { data, error: null };
     } catch (error) {
       console.error("Error during sign in:", error);
@@ -229,9 +268,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         error: { message: "An unexpected error occurred. Please try again." },
       };
     }
-  }, []);
+  };
 
-  const signOut = useCallback(async () => {
+  const signOut = async () => {
     try {
       console.log("Starting sign out process...");
 
@@ -259,10 +298,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
-      // Sign out from Supabase
+      // Sign out from Supabase - this clears all tokens
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Error during Supabase sign out:", error);
+      }
+
+      // Clear any remaining local storage
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        console.log("Local storage cleared");
+      } catch (error) {
+        console.error("Error clearing local storage:", error);
       }
 
       console.log("Sign out completed successfully");
@@ -272,8 +320,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       setSession(null);
       setLoading(false);
+
+      // Still try to clear storage
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (storageError) {
+        console.error(
+          "Error clearing storage during error handling:",
+          storageError
+        );
+      }
     }
-  }, [user]);
+  };
 
   const contextValue = useMemo(
     () => ({

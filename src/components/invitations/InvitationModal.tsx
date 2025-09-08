@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { X, Send, UserPlus } from "lucide-react";
 import { useInvitations } from "../../hooks/useInvitations";
-import { useModal } from "../../hooks/useModal";
-import { ModalWrapper } from "../common/ModalWrapper";
 
 interface User {
   id: string;
@@ -15,17 +13,18 @@ interface InvitationModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
+  onInvitationSent?: (success: boolean, message?: string) => void;
 }
 
 export const InvitationModal: React.FC<InvitationModalProps> = ({
   isOpen,
   onClose,
   user,
+  onInvitationSent,
 }) => {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const { sendInvitation } = useInvitations();
-  const { modalState, hideModal, showAlert } = useModal();
 
   const handleSendInvitation = async () => {
     if (!user) return;
@@ -37,25 +36,25 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
       if (result.success) {
         onClose();
         setMessage("");
-        showAlert(
-          "Invitation Sent",
-          "Your chat invitation has been sent successfully!",
-          "success"
-        );
+        // Notify parent component about successful invitation
+        if (onInvitationSent) {
+          onInvitationSent(
+            true,
+            "Your chat invitation has been sent successfully!"
+          );
+        }
       } else {
-        showAlert(
-          "Failed to Send Invitation",
-          result.error || "Failed to send invitation",
-          "error"
-        );
+        // Notify parent component about failed invitation
+        if (onInvitationSent) {
+          onInvitationSent(false, result.error || "Failed to send invitation");
+        }
       }
     } catch (error) {
       console.error("Error sending invitation:", error);
-      showAlert(
-        "Error",
-        "Failed to send invitation. Please try again.",
-        "error"
-      );
+      // Notify parent component about error
+      if (onInvitationSent) {
+        onInvitationSent(false, "Failed to send invitation. Please try again.");
+      }
     } finally {
       setIsSending(false);
     }
@@ -167,20 +166,6 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Alert Modal */}
-      <ModalWrapper
-        isOpen={modalState.isOpen}
-        onClose={hideModal}
-        title={modalState.title}
-        message={modalState.message}
-        type={modalState.type}
-        onConfirm={modalState.onConfirm}
-        onCancel={modalState.onCancel}
-        confirmText={modalState.confirmText}
-        cancelText={modalState.cancelText}
-        showActions={modalState.showActions}
-      />
     </div>
   );
 };
