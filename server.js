@@ -201,5 +201,11 @@ io.on("connection", (socket) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
+
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {});
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
