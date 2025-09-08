@@ -95,6 +95,38 @@ export const useInvitations = () => {
     if (!user) return { success: false, error: "User not authenticated" };
 
     try {
+      // Validate recipient ID
+      if (!recipientId || recipientId === user.id) {
+        return { success: false, error: "Invalid recipient" };
+      }
+
+      // First, ensure both users exist in the users table
+      const { data: senderData, error: senderError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+      if (senderError || !senderData) {
+        console.error("Sender not found in users table:", senderError);
+        return {
+          success: false,
+          error:
+            "Your account is not properly set up. Please sign out and sign in again.",
+        };
+      }
+
+      const { data: recipientData, error: recipientError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", recipientId)
+        .single();
+
+      if (recipientError || !recipientData) {
+        console.error("Recipient not found in users table:", recipientError);
+        return { success: false, error: "Recipient user not found" };
+      }
+
       // Check if there's already a pending invitation
       const { data: existingInvitation } = await supabase
         .from("chat_invitations")
@@ -133,6 +165,16 @@ export const useInvitations = () => {
 
       if (error) {
         console.error("Error sending invitation:", error);
+
+        // Handle specific foreign key constraint errors
+        if (error.message.includes("foreign key constraint")) {
+          return {
+            success: false,
+            error:
+              "User account issue. Please try signing out and signing in again.",
+          };
+        }
+
         return { success: false, error: error.message };
       }
 
