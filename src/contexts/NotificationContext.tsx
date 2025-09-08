@@ -175,76 +175,130 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const loadUnreadCounts = async () => {
+  const loadUnreadCounts = useCallback(async () => {
     if (!user) return;
 
     try {
-      // Get unread message counts for each conversation
-      const { data: conversations, error: convError } = await supabase
-        .from("conversations")
-        .select("id, participant1_id, participant2_id")
-        .or(`participant1_id.eq.${user.id},participant2_id.eq.${user.id}`);
+      // Use a single query with joins to get all unread messages efficiently
+      const { data: unreadMessages, error } = await supabase
+        .from("messages")
+        .select(
+          `
+          conversation_id,
+          content,
+          created_at,
+          sender_id,
+          conversations!inner(
+            id,
+            participant1_id,
+            participant2_id
+          ),
+          users!messages_sender_id_fkey(full_name)
+        `
+        )
+        .neq("sender_id", user.id)
+        .eq("status", "sent")
+        .or(
+          `conversations.participant1_id.eq.${user.id},conversations.participant2_id.eq.${user.id}`
+        )
+        .order("created_at", { ascending: false });
 
-      if (convError) {
-        console.error("Error loading conversations:", convError);
+      if (error) {
+        console.error("Error loading unread messages:", error);
         return;
       }
 
       const counts = new Map<string, number>();
       const unreadList: UnreadMessage[] = [];
+      const conversationGroups = new Map<string, any[]>();
 
-      for (const conv of conversations || []) {
-        // Get unread messages count
-        const { data: unreadMessages, error: msgError } = await supabase
-          .from("messages")
-          .select("id, content, created_at, sender_id")
-          .eq("conversation_id", conv.id)
-          .neq("sender_id", user.id)
-          .eq("status", "sent")
-          .order("created_at", { ascending: false });
-
-        if (!msgError && unreadMessages && unreadMessages.length > 0) {
-          counts.set(conv.id, unreadMessages.length);
-
-          // Get sender name
-          const senderId = unreadMessages[0].sender_id;
-          const { data: senderData } = await supabase
-            .from("users")
-            .select("full_name")
-            .eq("id", senderId)
-            .single();
-
-          unreadList.push({
-            conversation_id: conv.id,
-            count: unreadMessages.length,
-            last_message: unreadMessages[0].content,
-            last_message_at: unreadMessages[0].created_at,
-            sender_name: senderData?.full_name || "Unknown",
-          });
+      // Group messages by conversation
+      unreadMessages?.forEach((msg) => {
+        const convId = msg.conversation_id;
+        if (!conversationGroups.has(convId)) {
+          conversationGroups.set(convId, []);
         }
-      }
+        conversationGroups.get(convId)!.push(msg);
+      });
+
+      // Process each conversation group
+      conversationGroups.forEach((messages, convId) => {
+        counts.set(convId, messages.length);
+
+        const latestMessage = messages[0];
+        unreadList.push({
+          conversation_id: convId,
+          count: messages.length,
+          last_message: latestMessage.content,
+          last_message_at: latestMessage.created_at,
+          sender_name: latestMessage.users?.full_name || "Unknown",
+        });
+      });
 
       setUnreadCounts(counts);
       setUnreadMessages(unreadList);
     } catch (error) {
       console.error("Error loading unread counts:", error);
     }
-  };
+  }, [user]);
 
   // Refresh unread counts periodically
   useEffect(() => {
     if (user) {
-      const interval = setInterval(loadUnreadCounts, 30000); // Refresh every 30 seconds
+      const interval = setInterval(loadUnreadCounts, 60000); // Refresh every 60 seconds
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, loadUnreadCounts]);
 
   // Auto-mark messages as read when user switches to a conversation
   useEffect(() => {
     if (currentConversationId && user) {
-      markAsRead(currentConversationId);
+      // Debounce the markAsRead call to prevent multiple rapid calls
+      const timeoutId = setTimeout(() => {
+        // Call markAsRead function directly to avoid dependency issues
+        const markAsReadFn = async (conversationId: string) => {
+          if (!user) return;
+
+          try {
+            // Update message status to read
+            const { error } = await supabase
+              .from("messages")
+              .update({ status: "read" })
+              .eq("conversation_id", conversationId)
+              .neq("sender_id", user.id)
+              .eq("status", "sent");
+
+            if (error) {
+              console.error("Error marking messages as read:", error);
+              return;
+            }
+
+            // Update local state immediately for better UX
+            setUnreadCounts((prev) => {
+              const newMap = new Map(prev);
+              newMap.delete(conversationId);
+              return newMap;
+            });
+
+            setUnreadMessages((prev) =>
+              prev.filter((msg) => msg.conversation_id !== conversationId)
+            );
+
+            // Refresh notifications to ensure consistency
+            setTimeout(() => {
+              loadUnreadCounts();
+            }, 1000);
+          } catch (error) {
+            console.error("Error marking as read:", error);
+          }
+        };
+
+        markAsReadFn(currentConversationId);
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [currentConversationId, user]);
+  }, [currentConversationId, user, loadUnreadCounts]);
 
   const handleNewMessage = async (message: any) => {
     if (!notificationSettings.message_notifications) return;
@@ -320,14 +374,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
       try {
         // Update message status to read
-        await supabase
+        const { error } = await supabase
           .from("messages")
           .update({ status: "read" })
           .eq("conversation_id", conversationId)
           .neq("sender_id", user.id)
           .eq("status", "sent");
 
-        // Update local state
+        if (error) {
+          console.error("Error marking messages as read:", error);
+          return;
+        }
+
+        // Update local state immediately for better UX
         setUnreadCounts((prev) => {
           const newMap = new Map(prev);
           newMap.delete(conversationId);
@@ -337,11 +396,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         setUnreadMessages((prev) =>
           prev.filter((msg) => msg.conversation_id !== conversationId)
         );
+
+        // Refresh notifications to ensure consistency
+        setTimeout(() => {
+          loadUnreadCounts();
+        }, 1000);
       } catch (error) {
         console.error("Error marking as read:", error);
       }
     },
-    [user]
+    [user, loadUnreadCounts]
   );
 
   const markAllAsRead = useCallback(async () => {

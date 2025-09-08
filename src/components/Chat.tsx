@@ -272,9 +272,9 @@ export const Chat: React.FC = () => {
 
       {/* Invitation Notification */}
       <InvitationNotification
-        onInvitationAccepted={() => {
-          // When an invitation is accepted, navigate to the new conversation
-          // The conversation should be automatically created by the database trigger
+        onInvitationAccepted={(invitation) => {
+          // When an invitation is accepted, the conversation is created by the database trigger
+          // The sidebar will automatically refresh due to socket events
           // Navigate to home to refresh the conversation list
           navigate("/");
         }}

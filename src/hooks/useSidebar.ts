@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuth";
 import { useSocket } from "./useSocket";
 import { useNotifications } from "./useNotifications";
@@ -38,7 +38,7 @@ export const useSidebar = (selectedConversation: string | null) => {
     useNotifications();
   const navigate = useNavigate();
 
-  // Handle conversation deletion
+  // Handle conversation deletion and creation events
   useEffect(() => {
     const handleConversationDeleted = (event: CustomEvent) => {
       const { conversationId } = event.detail;
@@ -54,9 +54,39 @@ export const useSidebar = (selectedConversation: string | null) => {
       }
     };
 
+    const handleConversationCreated = (event: CustomEvent) => {
+      console.log(
+        "Conversation created event received in sidebar:",
+        event.detail
+      );
+      // Reload conversations to include the new conversation
+      loadConversations();
+      // Refresh notifications
+      refreshNotifications();
+    };
+
+    const handleInvitationResponse = (event: CustomEvent) => {
+      console.log(
+        "Invitation response event received in sidebar:",
+        event.detail
+      );
+      // Reload conversations in case a new conversation was created
+      loadConversations();
+      // Refresh notifications
+      refreshNotifications();
+    };
+
     window.addEventListener(
       "conversation_deleted",
       handleConversationDeleted as EventListener
+    );
+    window.addEventListener(
+      "conversation_created",
+      handleConversationCreated as EventListener
+    );
+    window.addEventListener(
+      "invitation_response",
+      handleInvitationResponse as EventListener
     );
 
     return () => {
@@ -64,20 +94,34 @@ export const useSidebar = (selectedConversation: string | null) => {
         "conversation_deleted",
         handleConversationDeleted as EventListener
       );
+      window.removeEventListener(
+        "conversation_created",
+        handleConversationCreated as EventListener
+      );
+      window.removeEventListener(
+        "invitation_response",
+        handleInvitationResponse as EventListener
+      );
     };
-  }, [selectedConversation, navigate]);
+  }, [selectedConversation, navigate, refreshNotifications]);
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     if (!user) return;
 
     setLoadingConversations(true);
     try {
+      // Use a single query with join to get user data efficiently
       const { data, error } = await supabase
         .from("conversations")
-        .select("*")
+        .select(
+          `
+          *,
+          participant1:users!conversations_participant1_id_fkey(id, full_name, email, avatar_url, status, last_seen),
+          participant2:users!conversations_participant2_id_fkey(id, full_name, email, avatar_url, status, last_seen)
+        `
+        )
         .or(`participant1_id.eq.${user.id},participant2_id.eq.${user.id}`)
-        .order("last_message_at", { ascending: false })
-        .not("last_message_at", "is", null);
+        .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (error) {
         console.error("Error loading conversations:", error);
@@ -85,40 +129,19 @@ export const useSidebar = (selectedConversation: string | null) => {
       }
 
       if (data && data.length > 0) {
-        const conversationsWithUsers = await Promise.all(
-          data.map(async (conv) => {
-            const otherUserId =
-              conv.participant1_id === user.id
-                ? conv.participant2_id
-                : conv.participant1_id;
+        const conversationsWithUsers = data.map((conv) => {
+          const otherUser =
+            conv.participant1_id === user.id
+              ? conv.participant2
+              : conv.participant1;
 
-            const { data: userData, error: userError } = await supabase
-              .from("users")
-              .select("id, full_name, email, avatar_url, status, last_seen")
-              .eq("id", otherUserId)
-              .single();
+          return {
+            ...conv,
+            other_user: otherUser,
+          };
+        });
 
-            if (userError) {
-              console.error(
-                "Error loading user data for",
-                otherUserId,
-                ":",
-                userError
-              );
-              return null;
-            }
-
-            return {
-              ...conv,
-              other_user: userData,
-            };
-          })
-        );
-
-        const validConversations = conversationsWithUsers.filter(
-          (conv) => conv !== null
-        );
-        setConversations(validConversations);
+        setConversations(conversationsWithUsers);
       } else {
         setConversations([]);
       }
@@ -127,7 +150,7 @@ export const useSidebar = (selectedConversation: string | null) => {
     } finally {
       setLoadingConversations(false);
     }
-  };
+  }, [user]);
 
   const loadAllUsers = async () => {
     if (!user) return;
@@ -194,6 +217,12 @@ export const useSidebar = (selectedConversation: string | null) => {
     setRefreshing(false);
   };
 
+  // Function to refresh conversations (can be called from other components)
+  const refreshConversations = useCallback(async () => {
+    console.log("Refreshing conversations...");
+    await loadConversations();
+  }, []);
+
   const handleLogout = async () => {
     try {
       console.log("Logout initiated");
@@ -230,13 +259,33 @@ export const useSidebar = (selectedConversation: string | null) => {
         refreshNotifications();
       };
 
+      const handleConversationCreated = (data: any) => {
+        console.log("New conversation created:", data);
+        // Reload conversations to include the new conversation
+        loadConversations();
+        // Refresh notifications
+        refreshNotifications();
+      };
+
+      const handleInvitationResponse = (data: any) => {
+        console.log("Invitation response received:", data);
+        // Reload conversations in case a new conversation was created
+        loadConversations();
+        // Refresh notifications
+        refreshNotifications();
+      };
+
       socket.on("receive_message", handleNewMessage);
+      socket.on("conversation_created", handleConversationCreated);
+      socket.on("invitation_response", handleInvitationResponse);
 
       return () => {
         socket.off("receive_message", handleNewMessage);
+        socket.off("conversation_created", handleConversationCreated);
+        socket.off("invitation_response", handleInvitationResponse);
       };
     }
-  }, [socket, user, refreshNotifications]);
+  }, [socket, user, refreshNotifications, loadConversations]);
 
   useEffect(() => {
     if (user && selectedConversation) {
@@ -244,14 +293,14 @@ export const useSidebar = (selectedConversation: string | null) => {
     }
   }, [selectedConversation, user]);
 
-  // Periodic refresh to ensure sidebar stays in sync
+  // Periodic refresh to ensure sidebar stays in sync (reduced frequency)
   useEffect(() => {
     if (user) {
       const interval = setInterval(() => {
         console.log("Periodic sidebar refresh...");
         loadConversations();
         refreshNotifications();
-      }, 30000); // Refresh every 30 seconds
+      }, 60000); // Refresh every 60 seconds instead of 30
 
       return () => clearInterval(interval);
     }
@@ -290,5 +339,6 @@ export const useSidebar = (selectedConversation: string | null) => {
     handleRefresh,
     handleLogout,
     markAsRead,
+    refreshConversations,
   };
 };

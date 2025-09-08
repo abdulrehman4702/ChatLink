@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { LogOut, MessageCircle, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SidebarHeader } from "./SidebarHeader";
@@ -53,9 +53,34 @@ export const ChatSidebarRefactored: React.FC<ChatSidebarProps> = ({
     handleRefresh,
     handleLogout,
     markAsRead,
+    refreshConversations,
   } = useSidebar(selectedConversation);
 
   const { getInvitationStatus } = useInvitations();
+
+  // Listen for conversation creation events
+  useEffect(() => {
+    const handleConversationCreated = (event: CustomEvent) => {
+      console.log(
+        "Conversation created event received in ChatSidebar:",
+        event.detail
+      );
+      // Refresh conversations to show the new conversation
+      refreshConversations();
+    };
+
+    window.addEventListener(
+      "conversation_created",
+      handleConversationCreated as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "conversation_created",
+        handleConversationCreated as EventListener
+      );
+    };
+  }, [refreshConversations]);
 
   const handleUserClick = async (user: User) => {
     // Check if there's already a conversation or invitation

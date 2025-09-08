@@ -1,6 +1,7 @@
 import React from "react";
 import { Check, X, Clock, UserPlus, UserCheck, UserX } from "lucide-react";
 import { useInvitations, ChatInvitation } from "../../hooks/useInvitations";
+import { formatMessageTime } from "../../utils/timeFormat";
 
 interface InvitationListProps {
   type: "pending" | "sent";
@@ -164,7 +165,7 @@ export const InvitationList: React.FC<InvitationListProps> = ({
                   {getStatusText(invitation.status)}
                 </span>
                 <span className="text-xs text-gray-400">
-                  {new Date(invitation.created_at).toLocaleDateString()}
+                  {formatMessageTime(invitation.created_at)}
                 </span>
               </div>
             </div>

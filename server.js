@@ -25,7 +25,7 @@ const userRooms = new Map(); // userId -> Set of conversationIds
 
 io.on("connection", (socket) => {
   // Handle user joining
-  socket.on("join", (userId) => {
+  socket.on("join", async (userId) => {
     // Add socket to user's set of connections
     if (!connectedUsers.has(userId)) {
       connectedUsers.set(userId, new Set());
@@ -38,6 +38,27 @@ io.on("connection", (socket) => {
 
     // Broadcast user online status only if this is their first connection
     if (connectedUsers.get(userId).size === 1) {
+      // Update user status in database
+      try {
+        const { createClient } = require("@supabase/supabase-js");
+        const supabase = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+
+        await supabase
+          .from("users")
+          .update({
+            status: "online",
+            last_seen: new Date().toISOString(),
+          })
+          .eq("id", userId);
+
+        console.log(`Updated user ${userId} status to online`);
+      } catch (error) {
+        console.error("Error updating user status:", error);
+      }
+
       socket.broadcast.emit("user_status", {
         userId,
         status: "online",
@@ -210,7 +231,7 @@ io.on("connection", (socket) => {
   });
 
   // Handle disconnection
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     const userId = socketToUser.get(socket.id);
     if (userId) {
       const userSockets = connectedUsers.get(userId);
@@ -221,6 +242,28 @@ io.on("connection", (socket) => {
         if (userSockets.size === 0) {
           connectedUsers.delete(userId);
           userRooms.delete(userId);
+
+          // Update user status in database
+          try {
+            const { createClient } = require("@supabase/supabase-js");
+            const supabase = createClient(
+              process.env.SUPABASE_URL,
+              process.env.SUPABASE_SERVICE_ROLE_KEY
+            );
+
+            await supabase
+              .from("users")
+              .update({
+                status: "offline",
+                last_seen: new Date().toISOString(),
+              })
+              .eq("id", userId);
+
+            console.log(`Updated user ${userId} status to offline`);
+          } catch (error) {
+            console.error("Error updating user status:", error);
+          }
+
           socket.broadcast.emit("user_status", {
             userId,
             status: "offline",

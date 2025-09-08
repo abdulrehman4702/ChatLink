@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { useSocket } from "./useSocket";
@@ -35,7 +35,7 @@ export const useInvitations = () => {
   const { user } = useAuth();
   const { socket } = useSocket();
 
-  const loadPendingInvitations = async () => {
+  const loadPendingInvitations = useCallback(async () => {
     if (!user) {
       console.log("No user available for loading pending invitations");
       return;
@@ -73,9 +73,9 @@ export const useInvitations = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, loading]);
 
-  const loadSentInvitations = async () => {
+  const loadSentInvitations = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -100,7 +100,7 @@ export const useInvitations = () => {
     } catch (error) {
       console.error("Error in loadSentInvitations:", error);
     }
-  };
+  }, [user]);
 
   const sendInvitation = async (recipientId: string, message?: string) => {
     if (!user) return { success: false, error: "User not authenticated" };
@@ -228,7 +228,7 @@ export const useInvitations = () => {
         return { success: false, error: error.message };
       }
 
-      // If accepted, check if conversation was created
+      // If accepted, check if conversation was created and emit events
       if (status === "accepted") {
         // Wait a moment for the database trigger to execute
         setTimeout(async () => {
@@ -240,7 +240,19 @@ export const useInvitations = () => {
             )
             .single();
 
-          if (!conversation) {
+          if (conversation) {
+            console.log("Conversation created successfully:", conversation.id);
+
+            // Emit socket event to notify both users about new conversation
+            if (socket) {
+              socket.emit("conversation_created", {
+                conversationId: conversation.id,
+                participant1Id: data.sender_id,
+                participant2Id: user.id,
+                invitationId: invitationId,
+              });
+            }
+          } else {
             console.warn("Conversation was not created by trigger");
           }
         }, 1000);
@@ -330,7 +342,7 @@ export const useInvitations = () => {
       setPendingInvitations([]);
       setSentInvitations([]);
     }
-  }, [user?.id, isInitialized]); // Use user.id instead of user object to prevent unnecessary re-renders
+  }, [user?.id, isInitialized, loadPendingInvitations, loadSentInvitations]); // Added missing dependencies
 
   // Socket event listeners
   useEffect(() => {

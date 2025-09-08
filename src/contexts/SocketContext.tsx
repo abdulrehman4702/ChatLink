@@ -67,16 +67,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       //     : window.location.origin);
 
       const newSocket = io(socketUrl, {
-        transports: ["polling"], // Only use polling to avoid WebSocket issues
-        upgrade: false, // Disable WebSocket upgrade completely
-        rememberUpgrade: false,
-        timeout: 10000,
+        transports: ["polling", "websocket"], // Allow both polling and websocket
+        upgrade: true, // Enable WebSocket upgrade for better performance
+        rememberUpgrade: true,
+        timeout: 15000, // Increased timeout
         forceNew: true,
         reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 2000,
-        reconnectionDelayMax: 10000,
+        reconnectionAttempts: 5, // More attempts
+        reconnectionDelay: 1000, // Faster initial reconnection
+        reconnectionDelayMax: 5000, // Shorter max delay
         autoConnect: true,
+        withCredentials: true,
       });
 
       newSocket.on("connect", () => {
@@ -120,10 +121,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
           console.error("Max socket connection attempts reached");
           newSocket.disconnect();
           isCreatingSocket.current = false;
+        } else {
+          // Retry connection after a delay
+          setTimeout(() => {
+            if (newSocket.disconnected) {
+              newSocket.connect();
+            }
+          }, 2000 * connectionAttempts.current);
         }
       });
 
       newSocket.on("user_status", (data) => {
+        console.log("User status update received:", data);
         if (data.status === "online") {
           setOnlineUsers((prev) => new Set([...prev, data.userId]));
         } else {
@@ -133,6 +142,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
             return updated;
           });
         }
+      });
+
+      // Handle user last seen updates
+      newSocket.on("user_last_seen", (data) => {
+        console.log("User last seen update received:", data);
+        // Dispatch a custom event for last seen updates
+        window.dispatchEvent(
+          new CustomEvent("user_last_seen", {
+            detail: data,
+          })
+        );
       });
 
       newSocket.on("user_typing", (data) => {
@@ -152,6 +172,28 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         // Dispatch a custom event that can be listened to by other components
         window.dispatchEvent(
           new CustomEvent("conversation_deleted", {
+            detail: data,
+          })
+        );
+      });
+
+      // Handle conversation creation
+      newSocket.on("conversation_created", (data) => {
+        console.log("Conversation created event received:", data);
+        // Dispatch a custom event that can be listened to by other components
+        window.dispatchEvent(
+          new CustomEvent("conversation_created", {
+            detail: data,
+          })
+        );
+      });
+
+      // Handle invitation responses
+      newSocket.on("invitation_response", (data) => {
+        console.log("Invitation response event received:", data);
+        // Dispatch a custom event that can be listened to by other components
+        window.dispatchEvent(
+          new CustomEvent("invitation_response", {
             detail: data,
           })
         );

@@ -1,5 +1,5 @@
 import React from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatMessageTime } from "../../utils/timeFormat";
 
 interface User {
   id: string;
@@ -78,9 +78,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             <div className="flex items-center space-x-1 md:space-x-2">
               <div className="text-xs text-gray-400 font-medium">
                 {conversation.last_message_at &&
-                  formatDistanceToNow(new Date(conversation.last_message_at), {
-                    addSuffix: true,
-                  })}
+                  formatMessageTime(conversation.last_message_at)}
               </div>
               {hasUnread && (
                 <div className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded-full min-w-[16px] md:min-w-[20px] text-center">

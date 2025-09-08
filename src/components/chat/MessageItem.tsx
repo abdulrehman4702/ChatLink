@@ -1,6 +1,6 @@
 import React from "react";
 import { Check, CheckCheck } from "lucide-react";
-import { format, isToday, isYesterday } from "date-fns";
+import { formatMessageTime } from "../../utils/timeFormat";
 
 interface Message {
   id: string;
@@ -29,17 +29,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   otherUser,
   searchQuery,
 }) => {
-  const formatMessageTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    if (isToday(date)) {
-      return format(date, "HH:mm");
-    } else if (isYesterday(date)) {
-      return "Yesterday";
-    } else {
-      return format(date, "MMM dd");
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "sent":

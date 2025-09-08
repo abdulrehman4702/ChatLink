@@ -37,7 +37,7 @@ export const InvitationNotification: React.FC<InvitationNotificationProps> = ({
       onInvitationAccepted(invitation);
       showAlert(
         "Invitation Accepted",
-        "You can now start chatting with this user!",
+        "You can now start chatting with this user! The conversation has been created.",
         "success"
       );
     } else {

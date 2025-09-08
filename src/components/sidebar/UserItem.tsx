@@ -1,5 +1,5 @@
 import React from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatLastSeen } from "../../utils/timeFormat";
 
 interface User {
   id: string;
@@ -59,9 +59,7 @@ export const UserItem: React.FC<UserItemProps> = ({
             </span>
           ) : (
             <span className="hidden sm:inline">
-              {formatDistanceToNow(new Date(user.last_seen), {
-                addSuffix: true,
-              })}
+              {formatLastSeen(user.last_seen)}
             </span>
           )}
         </div>

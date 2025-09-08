@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuth";
 import { useSocket } from "./useSocket";
-import { useNotifications } from "./useNotifications";
+// import { useNotifications } from "./useNotifications"; // Removed unused import
 import { supabase } from "../lib/supabase";
 
 interface Message {
@@ -40,7 +40,8 @@ export const useMessages = (
     currentConversationId,
     isConnected,
   } = useSocket();
-  const { markAsRead } = useNotifications();
+  // Remove unused markAsRead import to fix linting warning
+  // const { markAsRead } = useNotifications();
 
   const loadMessages = useCallback(async () => {
     if (!conversationId) {
@@ -118,14 +119,6 @@ export const useMessages = (
   useEffect(() => {
     if (conversationId) {
       loadMessages();
-      if (markAsRead && typeof markAsRead === "function") {
-        try {
-          markAsRead(conversationId);
-        } catch (error) {
-          console.error("Error calling markAsRead:", error);
-        }
-      }
-      markMessagesAsRead(conversationId);
       // Join the conversation room only if we're not already in it
       if (currentConversationId !== conversationId) {
         joinConversation(conversationId);
@@ -148,7 +141,19 @@ export const useMessages = (
     joinConversation,
     leaveConversation,
     currentConversationId,
-  ]); // Added loadMessages to dependencies
+  ]);
+
+  // Separate effect for marking messages as read to prevent race conditions
+  useEffect(() => {
+    if (conversationId && user) {
+      // Debounce the markAsRead calls
+      const timeoutId = setTimeout(() => {
+        markMessagesAsRead(conversationId);
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [conversationId, user]);
 
   // Handle typing status
   useEffect(() => {
