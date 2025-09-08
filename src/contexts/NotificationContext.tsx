@@ -93,20 +93,38 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [user]);
 
-  // Listen for new messages
+  // Listen for new messages via WebSocket
   useEffect(() => {
     if (socket && user) {
       const handleReceiveMessage = (message: any) => {
-        console.log("Notification context received message:", message);
+        console.log(
+          "Notification context received message via WebSocket:",
+          message
+        );
         if (message.sender_id !== user.id) {
           handleNewMessage(message);
         }
       };
 
+      const handleMessageRead = (data: any) => {
+        console.log("Message read event received via WebSocket:", data);
+        // Update local state immediately
+        setUnreadCounts((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(data.conversationId);
+          return newMap;
+        });
+        setUnreadMessages((prev) =>
+          prev.filter((msg) => msg.conversation_id !== data.conversationId)
+        );
+      };
+
       socket.on("receive_message", handleReceiveMessage);
+      socket.on("message_read", handleMessageRead);
 
       return () => {
         socket.off("receive_message", handleReceiveMessage);
+        socket.off("message_read", handleMessageRead);
       };
     }
   }, [socket, user]);
@@ -179,61 +197,50 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!user) return;
 
     try {
-      // Use a single query with joins to get all unread messages efficiently
-      const { data: unreadMessages, error } = await supabase
-        .from("messages")
-        .select(
-          `
-          conversation_id,
-          content,
-          created_at,
-          sender_id,
-          conversations!inner(
-            id,
-            participant1_id,
-            participant2_id
-          ),
-          users!messages_sender_id_fkey(full_name)
-        `
-        )
-        .neq("sender_id", user.id)
-        .eq("status", "sent")
-        .or(
-          `conversations.participant1_id.eq.${user.id},conversations.participant2_id.eq.${user.id}`
-        )
-        .order("created_at", { ascending: false });
+      // First get all conversations for the user
+      const { data: conversations, error: convError } = await supabase
+        .from("conversations")
+        .select("id, participant1_id, participant2_id")
+        .or(`participant1_id.eq.${user.id},participant2_id.eq.${user.id}`);
 
-      if (error) {
-        console.error("Error loading unread messages:", error);
+      if (convError) {
+        console.error("Error loading conversations:", convError);
         return;
       }
 
       const counts = new Map<string, number>();
       const unreadList: UnreadMessage[] = [];
-      const conversationGroups = new Map<string, any[]>();
 
-      // Group messages by conversation
-      unreadMessages?.forEach((msg) => {
-        const convId = msg.conversation_id;
-        if (!conversationGroups.has(convId)) {
-          conversationGroups.set(convId, []);
+      // Get unread messages for each conversation
+      for (const conv of conversations || []) {
+        const { data: unreadMessages, error: msgError } = await supabase
+          .from("messages")
+          .select("id, content, created_at, sender_id")
+          .eq("conversation_id", conv.id)
+          .neq("sender_id", user.id)
+          .eq("status", "sent")
+          .order("created_at", { ascending: false });
+
+        if (!msgError && unreadMessages && unreadMessages.length > 0) {
+          counts.set(conv.id, unreadMessages.length);
+
+          // Get sender name for the latest message
+          const senderId = unreadMessages[0].sender_id;
+          const { data: senderData } = await supabase
+            .from("users")
+            .select("full_name")
+            .eq("id", senderId)
+            .single();
+
+          unreadList.push({
+            conversation_id: conv.id,
+            count: unreadMessages.length,
+            last_message: unreadMessages[0].content,
+            last_message_at: unreadMessages[0].created_at,
+            sender_name: senderData?.full_name || "Unknown",
+          });
         }
-        conversationGroups.get(convId)!.push(msg);
-      });
-
-      // Process each conversation group
-      conversationGroups.forEach((messages, convId) => {
-        counts.set(convId, messages.length);
-
-        const latestMessage = messages[0];
-        unreadList.push({
-          conversation_id: convId,
-          count: messages.length,
-          last_message: latestMessage.content,
-          last_message_at: latestMessage.created_at,
-          sender_name: latestMessage.users?.full_name || "Unknown",
-        });
-      });
+      }
 
       setUnreadCounts(counts);
       setUnreadMessages(unreadList);
@@ -242,13 +249,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [user]);
 
-  // Refresh unread counts periodically
-  useEffect(() => {
-    if (user) {
-      const interval = setInterval(loadUnreadCounts, 60000); // Refresh every 60 seconds
-      return () => clearInterval(interval);
-    }
-  }, [user, loadUnreadCounts]);
+  // Remove periodic refresh - rely on WebSocket events for real-time updates
+  // useEffect(() => {
+  //   if (user) {
+  //     const interval = setInterval(loadUnreadCounts, 60000); // Refresh every 60 seconds
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [user, loadUnreadCounts]);
 
   // Auto-mark messages as read when user switches to a conversation
   useEffect(() => {

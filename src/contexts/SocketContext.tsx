@@ -59,37 +59,50 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       connectionAttempts.current = 0; // Reset attempts for new user
 
       // Use environment variable for socket URL or default to localhost for development
-      const socketUrl = "https://chatlink-b2q6.onrender.com/";
-      // const socketUrl =
-      //   import.meta.env.VITE_SOCKET_URL ||
-      //   (import.meta.env.DEV
-      //     ? "https://chatlink-b2q6.onrender.com/"
-      //     : window.location.origin);
+      const socketUrl =
+        import.meta.env.VITE_SOCKET_URL ||
+        (import.meta.env.DEV
+          ? "ws://localhost:3001"
+          : "wss://chatlink-b2q6.onrender.com");
 
       const newSocket = io(socketUrl, {
-        transports: ["polling", "websocket"], // Allow both polling and websocket
-        upgrade: true, // Enable WebSocket upgrade for better performance
-        rememberUpgrade: true,
-        timeout: 15000, // Increased timeout
+        transports: ["websocket"], // Use WebSocket only for real-time communication
+        upgrade: false, // Disable upgrade since we're using WebSocket directly
+        rememberUpgrade: false,
+        timeout: 20000, // Increased timeout for WebSocket
         forceNew: true,
         reconnection: true,
-        reconnectionAttempts: 5, // More attempts
-        reconnectionDelay: 1000, // Faster initial reconnection
-        reconnectionDelayMax: 5000, // Shorter max delay
+        reconnectionAttempts: 10, // More attempts for WebSocket
+        reconnectionDelay: 2000, // Longer initial delay for WebSocket
+        reconnectionDelayMax: 10000, // Longer max delay
         autoConnect: true,
-        withCredentials: true,
+        withCredentials: false, // Disable credentials to avoid CORS issues
       });
 
       newSocket.on("connect", () => {
-        console.log("Socket connected successfully");
+        console.log("WebSocket connected successfully");
         setIsConnected(true);
         connectionAttempts.current = 0; // Reset attempts on successful connection
         newSocket.emit("join", user.id);
+
+        // Emit a custom event to notify other components
+        window.dispatchEvent(
+          new CustomEvent("socket_connected", {
+            detail: { userId: user.id },
+          })
+        );
       });
 
       newSocket.on("disconnect", (reason) => {
-        console.log("Socket disconnected:", reason);
+        console.log("WebSocket disconnected:", reason);
         setIsConnected(false);
+
+        // Emit a custom event to notify other components
+        window.dispatchEvent(
+          new CustomEvent("socket_disconnected", {
+            detail: { reason },
+          })
+        );
 
         // Only attempt reconnection for certain disconnect reasons
         if (reason === "io client disconnect") {
@@ -99,6 +112,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       newSocket.on("reconnect", () => {
+        console.log("WebSocket reconnected successfully");
         setIsConnected(true);
         newSocket.emit("join", user.id);
 
@@ -109,6 +123,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
             userId: user.id,
           });
         }
+
+        // Emit a custom event to notify other components
+        window.dispatchEvent(
+          new CustomEvent("socket_reconnected", {
+            detail: { userId: user.id },
+          })
+        );
       });
 
       newSocket.on("connect_error", (error) => {
@@ -121,6 +142,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
           console.error("Max socket connection attempts reached");
           newSocket.disconnect();
           isCreatingSocket.current = false;
+
+          // Try to reconnect after a longer delay
+          setTimeout(() => {
+            if (user && !socketRef.current) {
+              console.log(
+                "Attempting to reconnect socket after max attempts reached"
+              );
+              connectionAttempts.current = 0;
+              isCreatingSocket.current = false;
+            }
+          }, 30000); // Wait 30 seconds before trying again
         } else {
           // Retry connection after a delay
           setTimeout(() => {
@@ -278,7 +310,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsConnected(false);
       isCreatingSocket.current = false;
     }
-  }, []);
+
+    // Force reconnection by clearing the socket and letting the useEffect handle it
+    setTimeout(() => {
+      if (user && !socketRef.current) {
+        console.log("Manual reconnect triggered");
+        isCreatingSocket.current = false;
+        connectionAttempts.current = 0;
+      }
+    }, 1000);
+  }, [user]);
 
   const contextValue = useMemo(
     () => ({

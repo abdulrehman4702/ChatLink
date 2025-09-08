@@ -293,18 +293,18 @@ export const useSidebar = (selectedConversation: string | null) => {
     }
   }, [selectedConversation, user]);
 
-  // Periodic refresh to ensure sidebar stays in sync (reduced frequency)
-  useEffect(() => {
-    if (user) {
-      const interval = setInterval(() => {
-        console.log("Periodic sidebar refresh...");
-        loadConversations();
-        refreshNotifications();
-      }, 60000); // Refresh every 60 seconds instead of 30
+  // Remove periodic refresh - rely on WebSocket events for real-time updates
+  // useEffect(() => {
+  //   if (user) {
+  //     const interval = setInterval(() => {
+  //       console.log("Periodic sidebar refresh...");
+  //       loadConversations();
+  //       refreshNotifications();
+  //     }, 60000); // Refresh every 60 seconds instead of 30
 
-      return () => clearInterval(interval);
-    }
-  }, [user, refreshNotifications]);
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [user, refreshNotifications]);
 
   const filteredUsers = allUsers.filter(
     (u) =>

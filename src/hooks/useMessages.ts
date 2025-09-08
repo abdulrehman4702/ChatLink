@@ -164,10 +164,10 @@ export const useMessages = (
     }
   }, [typingUsers, otherUser]);
 
-  // Create stable callback functions outside of useEffect
+  // Create stable callback functions for WebSocket events
   const handleReceiveMessage = useCallback(
     (message: Message) => {
-      console.log("Received message via socket:", message);
+      console.log("Received message via WebSocket:", message);
 
       // Check both field names for compatibility
       const messageConversationId =
@@ -183,7 +183,7 @@ export const useMessages = (
       if (messageConversationId === conversationId) {
         console.log("Message matches current conversation, adding to state");
 
-        // Update state immediately without debouncing
+        // Update state immediately via WebSocket
         setMessages((prev) => {
           // Check if message already exists to prevent duplicates
           const exists = prev.some((msg) => msg.id === message.id);
@@ -203,7 +203,10 @@ export const useMessages = (
               message.conversation_id || (message as any).conversationId,
           };
 
-          console.log("Adding normalized message to state:", normalizedMessage);
+          console.log(
+            "Adding normalized message to state via WebSocket:",
+            normalizedMessage
+          );
           return [...prev, normalizedMessage];
         });
       } else {
@@ -214,6 +217,7 @@ export const useMessages = (
   );
 
   const handleMessageStatus = useCallback((data: any) => {
+    console.log("Message status update received via WebSocket:", data);
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === data.messageId ? { ...msg, status: data.status } : msg
@@ -222,6 +226,7 @@ export const useMessages = (
   }, []);
 
   const handleMessageRead = useCallback((data: any) => {
+    console.log("Message read status received via WebSocket:", data);
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === data.messageId ? { ...msg, status: "read" } : msg
@@ -229,15 +234,15 @@ export const useMessages = (
     );
   }, []);
 
-  // Socket event listeners
+  // WebSocket event listeners for real-time communication
   useEffect(() => {
     if (!socket) {
-      console.log("Socket not available for message listeners");
+      console.log("WebSocket not available for message listeners");
       return;
     }
 
     console.log(
-      "Setting up socket event listeners for conversation:",
+      "Setting up WebSocket event listeners for conversation:",
       conversationId
     );
 
@@ -245,11 +250,11 @@ export const useMessages = (
     socket.on("message_status", handleMessageStatus);
     socket.on("message_read", handleMessageRead);
 
-    // Handle conversation room join confirmation - reload messages to ensure sync
+    // Handle conversation room join confirmation via WebSocket
     const handleConversationJoined = (data: { conversationId: string }) => {
-      console.log("Conversation joined event received:", data);
+      console.log("Conversation joined event received via WebSocket:", data);
       if (data.conversationId === conversationId) {
-        console.log("Reloading messages after conversation join");
+        console.log("Reloading messages after WebSocket conversation join");
         loadMessages();
       }
     };
@@ -257,7 +262,7 @@ export const useMessages = (
     socket.on("conversation_joined", handleConversationJoined);
 
     return () => {
-      console.log("Cleaning up socket event listeners");
+      console.log("Cleaning up WebSocket event listeners");
       socket.off("receive_message", handleReceiveMessage);
       socket.off("message_status", handleMessageStatus);
       socket.off("message_read", handleMessageRead);
