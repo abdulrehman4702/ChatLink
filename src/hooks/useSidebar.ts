@@ -33,8 +33,9 @@ export const useSidebar = (selectedConversation: string | null) => {
   const [loadingUsers, setLoadingUsers] = useState(false);
 
   const { user, signOut } = useAuth();
-  const { onlineUsers } = useSocket();
-  const { unreadCounts, totalUnreadCount, markAsRead } = useNotifications();
+  const { onlineUsers, socket } = useSocket();
+  const { unreadCounts, totalUnreadCount, markAsRead, refreshNotifications } =
+    useNotifications();
   const navigate = useNavigate();
 
   // Handle conversation deletion
@@ -75,7 +76,8 @@ export const useSidebar = (selectedConversation: string | null) => {
         .from("conversations")
         .select("*")
         .or(`participant1_id.eq.${user.id},participant2_id.eq.${user.id}`)
-        .order("last_message_at", { ascending: false });
+        .order("last_message_at", { ascending: false })
+        .not("last_message_at", "is", null);
 
       if (error) {
         console.error("Error loading conversations:", error);
@@ -184,7 +186,11 @@ export const useSidebar = (selectedConversation: string | null) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadConversations(), loadAllUsers()]);
+    await Promise.all([
+      loadConversations(),
+      loadAllUsers(),
+      refreshNotifications(),
+    ]);
     setRefreshing(false);
   };
 
@@ -213,11 +219,43 @@ export const useSidebar = (selectedConversation: string | null) => {
     }
   }, [user]);
 
+  // Listen for new messages to update conversation list
+  useEffect(() => {
+    if (socket && user) {
+      const handleNewMessage = (message: any) => {
+        console.log("New message received in sidebar:", message);
+        // Reload conversations to get updated last_message and last_message_at
+        loadConversations();
+        // Also refresh notifications to update unread counts
+        refreshNotifications();
+      };
+
+      socket.on("receive_message", handleNewMessage);
+
+      return () => {
+        socket.off("receive_message", handleNewMessage);
+      };
+    }
+  }, [socket, user, refreshNotifications]);
+
   useEffect(() => {
     if (user && selectedConversation) {
       loadConversations();
     }
   }, [selectedConversation, user]);
+
+  // Periodic refresh to ensure sidebar stays in sync
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(() => {
+        console.log("Periodic sidebar refresh...");
+        loadConversations();
+        refreshNotifications();
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [user, refreshNotifications]);
 
   const filteredUsers = allUsers.filter(
     (u) =>

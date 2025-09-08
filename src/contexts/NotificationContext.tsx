@@ -38,6 +38,7 @@ interface NotificationContextType {
   markAllAsRead: () => Promise<void>;
   playNotificationSound: () => void;
   showDesktopNotification: (title: string, body: string, icon?: string) => void;
+  refreshNotifications: () => Promise<void>;
 }
 
 // Create default values for better Fast Refresh compatibility
@@ -59,6 +60,7 @@ const defaultContextValue: NotificationContextType = {
   markAllAsRead: async () => {},
   playNotificationSound: () => {},
   showDesktopNotification: () => {},
+  refreshNotifications: async () => {},
 };
 
 export const NotificationContext =
@@ -94,14 +96,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   // Listen for new messages
   useEffect(() => {
     if (socket && user) {
-      socket.on("receive_message", (message: any) => {
+      const handleReceiveMessage = (message: any) => {
+        console.log("Notification context received message:", message);
         if (message.sender_id !== user.id) {
           handleNewMessage(message);
         }
-      });
+      };
+
+      socket.on("receive_message", handleReceiveMessage);
 
       return () => {
-        socket.off("receive_message");
+        socket.off("receive_message", handleReceiveMessage);
       };
     }
   }, [socket, user]);
@@ -358,6 +363,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [user]);
 
+  const refreshNotifications = useCallback(async () => {
+    console.log("Refreshing notifications...");
+    await loadUnreadCounts();
+  }, []);
+
   const playNotificationSound = useCallback(() => {
     try {
       // Create a simple beep sound using Web Audio API
@@ -427,6 +437,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       markAllAsRead,
       playNotificationSound,
       showDesktopNotification,
+      refreshNotifications,
     }),
     [
       unreadCounts,
@@ -438,6 +449,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       markAllAsRead,
       playNotificationSound,
       showDesktopNotification,
+      refreshNotifications,
     ]
   );
 
